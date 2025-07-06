@@ -11,105 +11,62 @@ void nextCombination()
 {
   combinationsAttempted++; //Increase the overall count
 
-  discCAttempts++; //There are as many as 12 indents to try.
+  // Setting combo to memory
+  EEPROM.write(DISC_A_LAST, discA);
+  EEPROM.write(DISC_B_LAST, discB);
+  EEPROM.write(DISC_C_LAST, discC);
 
-  if (discCAttempts >= maxCAttempts) //Idents are exhausted, time to adjust discB
-  {
-    discCAttempts = 0; //Reset count
+  turnCCW();
+  //Serial.print("Setting DiscA to ");
+  //Serial.println(discA);
+  setDial(discA, 4);
+  turnCW();
+  //Serial.print("Setting DiscB to ");
+  //Serial.println(discB);
+  setDial(discB, 2);
+  turnCCW();
+  //Serial.print("Setting DiscC to ");
+  //Serial.println(discC);
+  setDial(discC, 1);
+  turnCW();
+  //Serial.println("Trying to open");
+  int goRight = discC+30;
+  if (goRight > 100)
+  { 
+    goRight = goRight - 100;
+  }
 
-    //The interference width of B to A is 11, meaning, if discB is at 40 and discA
-    //is at 30, if you move discB to 37 it will cause discA to move by 4 (to 26).
-    boolean crossesA = checkCrossing(discB, -11, discA); //Check to see if the next B will cross A
-    if (crossesA == true) //disc B is exhausted, time to adjust discA
-    {
-      discA += 3; //Disc A changes by 3
-      if (discA > 99)
-      {
-        discA -= 100;
-        Serial.println("Wrapping around zero.");
-        //By moving every three and wrapping around zero the
-        //safe will re-start but this time on a slightly different center (2 vs 0).
-        //The cracker should find solution first time around but this should
-        //increase the chance that it finds it on the 2nd search.
+  // Set initial position before turning
+  int initialPosition = steps;
+  unsigned long moveStartTime = millis();
+  
+  // Start turning at medium speed
+  setMotorSpeed(150);
+  
+  // Check if dial is actually moving
+  delay(100); // Give it a moment to start
+  
+  // Monitor if dial gets stuck (door unlocked)
+  for (int i = 0; i < 10; i++) {
+    int currentPosition = steps;
+    delay(50);
+    
+    // If position hasn't changed for several checks, the door is likely open
+    if (abs(currentPosition - steps) < 10) { // Minimal or no movement
+      if (i > 3) { // Multiple consecutive "stuck" readings
+        Serial.println();
+        Serial.println("Door is open!!! Dial stuck at position.");
+        announceSuccess();
+        disableMotor();
+        while(1); // Freeze
       }
-
-      //Adjust discA, discB, discC
-      discB = discA - 3; //Reset discB
-      if (discB < 0) discB += 100;
-
-      discC = getNextIndent(discB); //Get the first indent after B
-
-      Serial.println("Resetting dial...");
-
-      findFlag(); //Re-home the dial between large finds
-
-      //With this new A value, reset all discs
-      resetDiscsWithCurrentCombo(false);
-      discCAttempts = 0; //Reset count
-    }
-    else //Adjust discB and discC
-    {
-      //Serial.println("B: Adjust");
-
-      //Adjust discB to this new value
-      turnCW();
-
-      discB -= 3; //Disc B changes by 3
-      if (discB < 0) discB += 100;
-
-      int discBIsAt = setDial(discB, false);
-      //Serial.print("DiscB is at: ");
-      //Serial.println(discBIsAt);
-      //messagePause("Check dial position");
-
-      discC = getNextIndent(discB); //Get the first indent after B
-
-      turnCCW();
-
-      //You can't have a combo that is X-45-46: too close.
-      //There is a cross over point that comes when discB combo crosses
-      //discC. When discC is within 3 of discB we must set discB then
-      //immediately try discC (no move), then move to next discB.
-      //This allows discC to continue correctly pushing discB around its
-      //test set.
-      if(abs(discB - discC) < 4) //C is too close to B
-      {
-        //Don't move C
-        //Serial.println("Not moving C this time");
-      }
-      else
-      {
-        //Move C
-        int discCIsAt = setDial(discC, false);
-        //Serial.print("DiscC is at: ");
-        //Serial.println(discCIsAt);
-        //messagePause("Check dial position");
-      }
-
-      /*boolean crossesB = checkCrossing(discC, 3, discB); //Check to see if the next B will cross A
-      if (crossesB == true) //We need to skip this test
-      {
-        //Do nothing
-        //messagePause("skipping this discC");
-      }
-      else
-      {
-      }*/
+    } else {
+      i = 0; // Reset counter if movement detected
     }
   }
-  else //Adjust discC
-  {
-    //Serial.println("C: Adjust");
-
-    turnCCW();
-
-    discC = getNextIndent(discC); //Get next discC position
-
-    //Adjust discC to this new value
-    int discCIsAt = setDial(discC, false);
-    //Serial.print("DiscC is at: ");
-    //Serial.println(discCIsAt);
-  }
+  // If no stall detected, complete the combination
+  //Serial.println(goRight);
+  setDial(goRight, 1);
 
   showCombination(discA, discB, discC); //Update display
 
@@ -124,10 +81,8 @@ void nextCombination()
   Serial.print(discC);
 
   //Try the handle
-  if (tryHandle() == true)
+  if (false)
   {
-    Serial.print(", Handle position, ");
-    Serial.print(handlePosition);
 
     Serial.println();
     Serial.println("Door is open!!!");
@@ -139,8 +94,6 @@ void nextCombination()
     Serial.read();
 
     //Return to resting position
-    handleServo.write(servoRestingPosition);
-    delay(timeServoRelease); //Allow servo to release. 200 was too short on new safe
 
     while (1); //Freeze!
   }
